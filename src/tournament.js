@@ -59,33 +59,24 @@ export function playTournament(players, playGame) {
         return acc;
       }
 
-      // TODO: このコードの代わりに、対戦相手がいないプレイヤーが出たら次にずらすコードを書く。
-
-      // const emergentPlayer = first(filter(player => enemiesCollection.get(player).size === 1, players));
-
-      // if (emergentPlayer) {
-      //   return f(...nextParameter(emergentPlayer, enemiesCollection.get(emergentPlayer).first()));
-      // }
-
       const player = players.get(0);
+      const enemy  = first(filter(enemy => enemiesCollection.get(player).has(enemy) && canGame(player, enemy), players.rest()));
 
-      for (const enemy of filter(enemy => enemiesCollection.get(player).has(enemy), players.rest())) {
-        if (!canGame(player, enemy)) {
-          continue;
-        }
-
-        return f(...nextParameter(player, enemy));
+      if (!enemy) {
+        console.log('******** ERROR ********: ' + player + ' don\'t have enemies.');
+        throw 'Can\'t make game.';
       }
 
-      console.log('******** ERROR ********: ' + player + ' don\'t have enemies.');
-      throw "Can't make games.";
-      // const enemy  = first(filter(enemy => enemiesCollection.get(player).has(enemy), players.rest()));
+      return f(...nextParameter(player, enemy));
+      // for (const enemy of filter(enemy => enemiesCollection.get(player).has(enemy), players.rest())) {
+      //   if (!canGame(player, enemy)) {
+      //     continue;
+      //   }
 
-      // if (!enemy) {
-      //   console.log('******** ERROR ********: ' + player + ' don\'t have enemies.');
+      //   return f(...nextParameter(player, enemy));
       // }
 
-      // return f(...nextParameter(player, enemy));
+      // console.log('******** ERROR ********: ' + player + ' don\'t have enemies.');
     };
 
     return f(new Set(),
