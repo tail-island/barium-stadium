@@ -10,7 +10,7 @@ function playGame(player1, player2) {
     return null;
   }
 
-  return -Number(player1) + Math.random() * 5 > -Number(player2) + Math.random() * 5 ? player1 : player2;
+  return -Number(player1) + Math.random() * 10 > -Number(player2) + Math.random() * 10 ? player1 : player2;
 }
 
 playTournament(players, playGame);
