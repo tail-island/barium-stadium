@@ -1,0 +1,43 @@
+{
+  "name": "barium-stadium",
+  "version": "0.0.1",
+  "description": "Auto play system for 56 Animal Japanese Chess.",
+  "author": "OJIMA Ryoji",
+  "license": "EPL-1.0",
+  "private": true,
+  "engines": {
+    "node": ">= 8"
+  },
+  "babel": {
+    "presets": [
+      [
+        "env",
+        {
+          "targets": {
+            "node": 8
+          }
+        }
+      ]
+    ],
+    "plugins": [
+      "babel-plugin-lajure"
+    ]
+  },
+  "scripts": {
+    "test": "mocha --require babel-register test/**/*.js",
+    "start": "node -r babel-register src/app.js"
+  },
+  "dependencies": {
+    "immutable": "^3.8.2",
+    "lajure": "0.0.1",
+    "websocket": "^1.0.26"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-plugin-lajure": "0.0.2",
+    "babel-polyfill": "^6.26.0",
+    "babel-preset-env": "^1.7.0",
+    "babel-register": "^6.26.0",
+    "mocha": "^5.2.0"
+  }
+}
