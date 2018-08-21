@@ -1,11 +1,9 @@
-import {List, Map, OrderedMap, Range, Set} from 'immutable';
-import {count, every, filter, first, reduce, some} from 'lajure';
+import {List, Map, Range, Set} from 'immutable';
+import {count, filter, first, identity, reduce} from 'lajure';
 
 // TODO: プレイヤーが奇数の場合に対応する。
 
 List.prototype.shuffle = function() {
-  // TODO: アルゴリズムを変えて高速化する。
-
   const f = (acc, list) => {
     if (list.isEmpty()) {
       return acc;
@@ -18,72 +16,50 @@ List.prototype.shuffle = function() {
 };
 
 export function playTournament(players, playGame) {
-  const playGames = (games) => {
+  const getGameResults = (games) => {
     return reduce((acc, game) => acc.set(game, playGame(...game)), new Map(), games);
   };
 
-  const getPoints = (gameResults) => {
-    return reduce((acc, player) => acc.set(player,
-                                           count(filter(([game, winner]) => game.has(player) &&  winner && winner.equals(player), gameResults)) * 1.0 +
-                                           count(filter(([game, winner]) => game.has(player) && !winner,                          gameResults)) * 0.5),
-                  new Map(), players);
+  const getPointGroups = (gameResults) => {
+    const points = reduce((acc, player) => acc.set(player,
+                                                   count(filter(([game, winner]) => game.has(player) &&  winner && winner === player, gameResults)) * 1.0 +
+                                                   count(filter(([game, winner]) => game.has(player) && !winner,                      gameResults)) * 0.5),
+                          new Map(), players);
+
+    return reduce((acc, [point, players]) => acc.set(point, new Set(players.keys())), new Map(), points.groupBy(identity));
   };
 
-  const getGames = (gameResults, points) => {
-    const f = (acc, players, enemiesCollection) => {
-      const getNextEnemiesCollection = (...gamePlayers) => reduce((acc, gamePlayer) => acc.delete(gamePlayer),
-                                                                  reduce((acc, player) => acc.update(player,
-                                                                                                     enemies => reduce((acc, gamePlayer) => acc.delete(gamePlayer),
-                                                                                                                       enemies,
-                                                                                                                       gamePlayers)),
-                                                                         enemiesCollection,
-                                                                         players),
-                                                                  gamePlayers);
+  const getNextGames = (gameResults, pointGroups) => {
+    // なんの工夫もしてないバックトラックでごめんなさい……。
+    // 人力でもこなせる程度の回戦数なのだから、こんなんでもパフォーマンス上の問題は出ないはずだよね？
 
-      const canGame = (...gamePlayers) => every(([_, enemies]) => !enemies.isEmpty(), getNextEnemiesCollection(...gamePlayers));
-
-      const nextParameter = (...gamePlayers) => {
-        return [acc.add(new Set(gamePlayers)),
-                reduce((acc, gamePlayer) => acc.delete(acc.indexOf(gamePlayer)), players, gamePlayers),
-                reduce((acc, gamePlayer) => acc.delete(gamePlayer),
-                       reduce((acc, player) => acc.update(player,
-                                                          enemies => reduce((acc, gamePlayer) => acc.delete(gamePlayer),
-                                                                            enemies,
-                                                                            gamePlayers)),
-                              enemiesCollection,
-                              players),
-                       gamePlayers)];
-      };
-
+    const f = (acc, players) => {
       if (players.isEmpty()) {
         return acc;
       }
 
-      const player = players.get(0);
-      const enemy  = first(filter(enemy => enemiesCollection.get(player).has(enemy) && canGame(player, enemy), players.rest()));
+      const player = players.first();
 
-      if (!enemy) {
-        console.log('******** ERROR ********: ' + player + ' don\'t have enemies.');
-        throw 'Can\'t make game.';
+      for (const enemy of players.rest()) {
+        const nextGame = Set.of(player, enemy);
+
+        if (gameResults.has(nextGame)) {
+          continue;
+        }
+
+        const nextAcc = f(acc.add(nextGame), players.delete(players.indexOf(enemy)).delete(players.indexOf(player)));  // enemyから順に削除しているのは、playerの方が前にあるので、先に削除するとインデックスがずれるためです。
+
+        if (!nextAcc) {
+          continue;
+        }
+
+        return nextAcc;
       }
 
-      return f(...nextParameter(player, enemy));
-      // for (const enemy of filter(enemy => enemiesCollection.get(player).has(enemy), players.rest())) {
-      //   if (!canGame(player, enemy)) {
-      //     continue;
-      //   }
-
-      //   return f(...nextParameter(player, enemy));
-      // }
-
-      // console.log('******** ERROR ********: ' + player + ' don\'t have enemies.');
+      return null;
     };
 
-    return f(new Set(),
-             reduce((acc, point) => acc.concat(new List(points.get(point).keys()).shuffle()), new List(), new List(points.keys()).sort().reverse()),
-             reduce((acc, player) => {
-               return acc.set(player, reduce((acc, game) => game.size === 2 && game.has(player) ? acc.delete(game.delete(player).first()) : acc, new Set(players.delete(players.indexOf(player))), gameResults.keys()));
-             }, new Map(), players));
+    return f(new Set(), reduce((acc, point) => acc.concat(new List(pointGroups.get(point)).shuffle()), new List(), new List(pointGroups.keys()).sort().reverse()));
   };
 
   const firstGames = (() => {
@@ -100,41 +76,35 @@ export function playTournament(players, playGame) {
 
   return reduce((acc, round) => {
     console.log('*** ROUND ' + round + ' ***');
-
-    const playerComparator = (player1, player2) => {
-      return player1.name.localeCompare(player2.name);
-    };
+    console.log();
 
     const gameComparator = (game1, game2) => {
-      const [player11, player12] = game1.sort(playerComparator);
-      const [player21, player22] = game2.sort(playerComparator);
+      if (game1 == game2) {
+        return 0;
+      }
 
-      return playerComparator(player11, player21) || playerComparator(player12, player22);
+      return game1.sort() < game2.sort() ? -1 : 1;
     };
 
-    const gameResultComparator = ([game1, winner1], [game2, winner2]) => {
-      return gameComparator(game1, game2);
-    };
-
-    for (const [game, winner] of new List(acc).sort(gameResultComparator)) {
-      console.log(game.map(p => p.name).sort().join('-') + "\t" + (winner && winner.name));
+    for (const game of new List(acc.keys()).sort(gameComparator)) {
+      console.log(game.sort().join('-') + "\t" + acc.get(game));
     }
     console.log();
 
-    const points = getPoints(acc).groupBy(value => value);
+    const pointGroups = getPointGroups(acc);
 
-    for (const point of new List(points.keys()).sort().reverse()) {
-      console.log(point + '\t' + new List(points.get(point).keys()).sort().map(p => p.name).join(', '));
+    for (const point of new List(pointGroups.keys()).sort().reverse()) {
+      console.log(point + '\t' + new List(pointGroups.get(point)).sort().join(', '));
     }
     console.log();
 
-    const games = getGames(acc, points);
+    const nextGames = getNextGames(acc, pointGroups);
 
-    for (const game of games.sort(gameComparator)) {
-      console.log(new List(game).sort().map(p => p.name).join('-'));
+    for (const nextGame of nextGames.sort(gameComparator)) {
+      console.log(new List(nextGame).sort().join('-'));
     }
     console.log();
 
-    return acc.merge(playGames(games));
-  }, playGames(firstGames), Range(1, 13 + 1));
+    return acc.merge(getGameResults(nextGames));
+  }, getGameResults(firstGames), Range(1, 13 + 1));
 }

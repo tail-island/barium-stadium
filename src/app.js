@@ -1,23 +1,16 @@
-import {List, Map, Range, Record, Set} from 'immutable';
+import {List, Range} from 'immutable';
+import {map} from 'lajure';
+
 import {playTournament} from './tournament';
 
-class Player extends Record({name: '', strength: 0}) {
-}
-
-
-const players = new List(Range(1, 60 + 1).map(i => new Player({name: ('0' + i).slice(-2), strength: i})));
-
-for (const player of players) {
-  console.log(player);
-}
-
+const players = new List(map(i => ('0' + i).slice(-2), Range(1, 60 + 1)));
 
 function playGame(player1, player2) {
-  if (Math.random() < 0.1) {
+  if (Math.random() < 0.05) {
     return null;
   }
 
-  return player1.strength + Math.random() * 10 > player2.strength + Math.random() * 10 ? player1 : player2;
+  return -Number(player1) + Math.random() * 5 > -Number(player2) + Math.random() * 5 ? player1 : player2;
 }
 
 playTournament(players, playGame);
