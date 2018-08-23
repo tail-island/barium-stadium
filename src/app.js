@@ -1,16 +1,29 @@
-import {List, Range} from 'immutable';
-import {map} from 'lajure';
+import 'babel-polyfill';
 
+import * as fs from 'fs';
+import {List} from 'immutable';
+import {count, filter} from 'lajure';
 import {playTournament} from './tournament';
+import {playGame} from './battleField';
 
-const players = new List(map(i => ('0' + i).slice(-2), Range(1, 60 + 1)));
+// async function playGame(player1, player2) {
+//   if (Math.random() < 0.2) {
+//     return null;
+//   }
 
-function playGame(player1, player2) {
-  if (Math.random() < 0.05) {
-    return null;
-  }
+//   return -Number(player1) + Math.random() * 2 > -Number(player2) + Math.random() * 2 ? player1 : player2;
+// };
 
-  return -Number(player1) + Math.random() * 10 > -Number(player2) + Math.random() * 10 ? player1 : player2;
-}
+(async () => {
+  const players = new List(fs.readdirSync('./players'));
 
-playTournament(players, playGame);
+  const getGameResult = async (player1, player2) => {
+    const winners = List.of(await playGame(player1, player2), await playGame(player2, player1));
+
+    return new Map().
+      set(player1, count(filter(winner => winner === player1, winners)) * 1 + count(filter(winner => !winner, winners)) * 0.5).
+      set(player2, count(filter(winner => winner === player2, winners)) * 1 + count(filter(winner => !winner, winners)) * 0.5);
+  };
+
+  await playTournament(players, getGameResult);
+})();

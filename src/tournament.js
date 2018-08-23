@@ -1,7 +1,9 @@
 import {List, Map, Range, Set} from 'immutable';
-import {count, filter, first, identity, map, reduce} from 'lajure';
+import {identity, map, reduce} from 'lajure';
 
 // TODO: プレイヤーが奇数の場合に対応する。
+
+const ROUND = 13;
 
 List.prototype.shuffle = function() {
   const f = (acc, list) => {
@@ -15,45 +17,42 @@ List.prototype.shuffle = function() {
   return f(new List(), this);
 };
 
+function getPoint(player, gameResults) {
+  return reduce((acc, gameResult) => acc + (gameResult.has(player) ? gameResult.get(player) : 0), 0, gameResults.values());
+}
+
 function getPoints(players, gameResults) {
-  return reduce((acc, player) => acc.set(player,
-                                         count(filter(([game, winner]) => game.has(player) &&  winner && winner === player, gameResults)) * 1.0 +
-                                         count(filter(([game, winner]) => game.has(player) && !winner,                      gameResults)) * 0.5),
-                new Map(), players);
+  return reduce((acc, player) => acc.set(player, getPoint(player, gameResults)), new Map(), players);
 }
 
 function logGameResults(players, gameResults) {
   const points = getPoints(players, gameResults);
 
-  console.log('   ' + players.sort().join(' ') + ' Point');
+  console.log('   ' + players.sort().join('  ') + '  Point');
   console.log(new List(map(player => {
     return player + ' ' + new List(map(enemy => {
       const game = Set.of(player, enemy);
 
       if (!gameResults.has(game)) {
-        return ' ';
+        return '   ';
       }
 
-      const result = gameResults.get(game);
+      return gameResults.get(game).get(player).toFixed(1);
 
-      if (result === player) {
-        return 'o';
-      }
-
-      if (!result) {
-        return '-';
-      }
-
-      return 'x';
-
-    }, players.sort())).join('  ') + '   ' + (' ' + points.get(player).toFixed(1)).slice(-4);
+    }, players.sort())).join(' ') + '  ' + (' ' + points.get(player).toFixed(1)).slice(-4);
   }, players.sort())).join('\n'));
   console.log();
 }
 
-export function playTournament(players, playGame) {
-  const getGameResults = (games) => {
-    return reduce((acc, game) => acc.set(game, playGame(...game)), new Map(), games);
+export async function playTournament(players, getGameResult) {
+  const getGameResults = async (games) => {
+    let result = new Map();
+
+    for (const game of games) {
+      result = result.set(game, await getGameResult(...game));
+    }
+
+    return result;
   };
 
   const getPointGroups = (gameResults) => {
@@ -111,32 +110,40 @@ export function playTournament(players, playGame) {
     return f(new Set(), players.shuffle());
   })();
 
-  const result = reduce((acc, round) => {
-    const gameComparator = (game1, game2) => {
-      if (game1 == game2) {
-        return 0;
-      }
+  // asyncにしないとならなかったので、reduceではなくループで書きます……。
 
-      return game1.sort() < game2.sort() ? -1 : 1;
-    };
+  const result = await (async () => {
+    let result = await getGameResults(firstGames);
 
-    console.log('*** ROUND ' + round + ' ***');
-    console.log();
+    for (const i of Range(1, ROUND)) {
+      const gameComparator = (game1, game2) => {
+        if (game1 == game2) {
+          return 0;
+        }
 
-    logGameResults(players, acc);
+        return game1.sort() < game2.sort() ? -1 : 1;
+      };
 
-    const pointGroups = getPointGroups(acc);
+      console.log('*** ROUND ' + i + ' ***');
+      console.log();
 
-    console.log(new List(map(point => (' ' + point.toFixed(1)).slice(-4) + ': ' + new List(pointGroups.get(point)).sort().join(' '), new List(pointGroups.keys()).sort().reverse())).join('\n'));
-    console.log();
+      logGameResults(players, result);
 
-    const nextGames = getNextGames(acc, pointGroups);
+      const pointGroups = getPointGroups(result);
 
-    console.log(new List(map(nextGame => nextGame.sort().join('-'), nextGames.sort(gameComparator))).join(' '));
-    console.log();
+      console.log(new List(map(point => (' ' + point.toFixed(1)).slice(-4) + ': ' + new List(pointGroups.get(point)).sort().join(' '), new List(pointGroups.keys()).sort().reverse())).join('\n'));
+      console.log();
 
-    return acc.merge(getGameResults(nextGames));
-  }, getGameResults(firstGames), Range(1, 13));
+      const nextGames = getNextGames(result, pointGroups);
+
+      console.log(new List(map(nextGame => nextGame.sort().join('-'), nextGames.sort(gameComparator))).join(' '));
+      console.log();
+
+      result = result.merge(await getGameResults(nextGames));
+    }
+
+    return result;
+  })();
 
   console.log('*** FINAL ***');
   console.log();
