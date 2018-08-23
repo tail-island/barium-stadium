@@ -3,6 +3,7 @@ import 'babel-polyfill';
 import * as fs from 'fs';
 import {List} from 'immutable';
 import {count, filter} from 'lajure';
+import * as path from 'path';
 import {playTournament} from './tournament';
 import {playGame} from './battleField';
 
@@ -15,7 +16,7 @@ import {playGame} from './battleField';
 // };
 
 (async () => {
-  const players = new List(fs.readdirSync('./players'));
+  const players = new List(filter(player => fs.statSync(path.join('./players', player)).isDirectory(), fs.readdirSync('./players')));
 
   const getGameResult = async (player1, player2) => {
     const winners = List.of(await playGame(player1, player2), await playGame(player2, player1));
