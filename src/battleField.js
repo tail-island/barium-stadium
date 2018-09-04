@@ -1,7 +1,7 @@
 import {spawn} from 'child_process';
 import * as fs from 'fs';
 import * as http from 'http';
-import {count, filter, first} from 'lajure';
+import {count, filter, first, map} from 'lajure';
 import * as path from 'path';
 import {server as WebSocketServer} from 'websocket';
 import {Player, State, getNextPlayer} from './game';
@@ -104,13 +104,26 @@ export async function playGame(player1, player2) {
     return `${ winner == Player.black ? player1 : player2 }の勝ち！`;
   })());
 
+  // プレイヤーの終了を待つ（必要に応じて強制終了させる）プロミスを生成します。
+  const [waitExitPromise1, waitExitPromise2] = map((player, process) => new Promise(resolve => {
+    const timeout = setTimeout(() => {
+      console.log(`${ player }を強制終了します。`);
+      spawn('taskkill', ['/PID', process.pid, '/F', '/T']);
+    }, 180000);
+
+    process.once('exit', () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+  }), [player1, player2], [process1, process2]);
+
   // サーバーを終了させます。
   server.shutDown();
   httpServer.close();
 
-  // プレイヤーを終了させます。
-  spawn('taskkill', ['/pid', player1.pid, '/f', '/t']);
-  spawn('taskkill', ['/pid', player2.pid, '/f', '/t']);
+  // プレイヤーの終了を待ちます。
+  await waitExitPromise1;
+  await waitExitPromise2;
 
   if (!winner) {
     return null;

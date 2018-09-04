@@ -25,6 +25,7 @@
   },
   "scripts": {
     "test": "mocha --require babel-register test/**/*.js",
+    "battle": "node -r babel-register src/battle.js",
     "start": "node -r babel-register src/app.js"
   },
   "dependencies": {
