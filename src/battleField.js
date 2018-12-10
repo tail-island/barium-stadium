@@ -42,10 +42,12 @@ export async function playGame(player1, player2) {
 
   const connections = new Map();
 
-  const process1 = spawnPlayer(player1); connections.set(Player.black, await new Promise(resolve => server.once('connect', resolve)));
-  const process2 = spawnPlayer(player2); connections.set(Player.white, await new Promise(resolve => server.once('connect', resolve)));
+  const process1 = spawnPlayer(player1); connections.set(Player.black, await new Promise(resolve => server.once('connect', resolve))); // console.log(`${ player1 }に接続しました。`);
+  const process2 = spawnPlayer(player2); connections.set(Player.white, await new Promise(resolve => server.once('connect', resolve))); // console.log(`${ player2 }に接続しました。`);
 
   const pastStates = [];
+
+  let step = 0;
 
   const winner = await (async function _(state, lastMove) {
     log();
@@ -55,6 +57,12 @@ export async function playGame(player1, player2) {
       log('勝敗が決まりました。');
 
       return state.winner;
+    }
+
+    if (step++ > 256) {
+      log('256手を超えました。');
+
+      return null;
     }
 
     pastStates.push(state);
@@ -109,7 +117,8 @@ export async function playGame(player1, player2) {
     const timeout = setTimeout(() => {
       console.log(`${ player }を強制終了します。`);
       spawn('taskkill', ['/PID', process.pid, '/F', '/T']);
-    }, 180000);
+      resolve();  // 念のため。exitイベントが発火しない場合があるみたい。
+    }, 10 * 60 * 1000);
 
     process.once('exit', () => {
       clearTimeout(timeout);
